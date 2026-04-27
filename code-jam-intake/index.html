@@ -584,6 +584,17 @@
         optional: true,
       },
       {
+        id: 'what-need',
+        type: 'single-select',
+        section: 'Support',
+        title: 'What do you need from us?',
+        mapsTo: 'whatNeed',
+        options: [
+          { id: 'walk-through', label: 'Walk through it with me live' },
+          { id: 'just-flagging', label: 'Just flagging it' },
+        ],
+      },
+      {
         id: 'loading',
         type: 'loading',
         title: 'Submitting...',
