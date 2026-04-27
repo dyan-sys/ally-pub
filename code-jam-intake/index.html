@@ -1,0 +1,869 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Claude Code Jam — Blocker Intake</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --accent: #9b6dff;
+      --accent-dim: rgba(155, 109, 255, 0.15);
+      --accent-glow: rgba(120, 60, 220, 0.25);
+      --bg-start: #1a0010;
+      --bg-mid: #0e0008;
+      --bg-end: #0a0006;
+      --text: #f0ece4;
+      --text-secondary: rgba(240, 236, 228, 0.6);
+      --text-muted: rgba(240, 236, 228, 0.25);
+      --card-bg: rgba(255, 255, 255, 0.03);
+      --border: rgba(255, 255, 255, 0.08);
+      --border-active: rgba(155, 109, 255, 0.5);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: linear-gradient(170deg, var(--bg-start) 0%, var(--bg-mid) 40%, var(--bg-end) 100%);
+      color: var(--text);
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Galactic background */
+    #bg-layer {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+      overflow: hidden;
+    }
+
+    .glow-blob {
+      position: absolute;
+      top: 38%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 900px;
+      height: 620px;
+      background: radial-gradient(ellipse at 48% 52%,
+        rgba(255, 14, 90, 0.72) 0%,
+        rgba(230, 10, 75, 0.55) 12%,
+        rgba(180, 10, 110, 0.38) 28%,
+        rgba(110, 10, 130, 0.2) 48%,
+        rgba(60, 5, 80, 0.08) 65%,
+        transparent 78%
+      );
+      filter: blur(32px);
+    }
+
+    .glow-blob-inner {
+      position: absolute;
+      top: 37%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 280px;
+      height: 200px;
+      background: radial-gradient(ellipse at center,
+        rgba(255, 60, 120, 0.9) 0%,
+        rgba(255, 20, 80, 0.6) 35%,
+        transparent 70%
+      );
+      filter: blur(18px);
+    }
+
+    .glow-blob-purple {
+      position: absolute;
+      top: 20%;
+      left: 30%;
+      transform: translate(-50%, -50%);
+      width: 600px;
+      height: 420px;
+      background: radial-gradient(ellipse at center,
+        rgba(120, 50, 220, 0.4) 0%,
+        rgba(90, 30, 180, 0.2) 40%,
+        transparent 70%
+      );
+      filter: blur(50px);
+    }
+
+    .glow-blob-purple-2 {
+      position: absolute;
+      top: 60%;
+      left: 72%;
+      transform: translate(-50%, -50%);
+      width: 400px;
+      height: 300px;
+      background: radial-gradient(ellipse at center,
+        rgba(180, 30, 100, 0.25) 0%,
+        rgba(120, 10, 80, 0.1) 50%,
+        transparent 75%
+      );
+      filter: blur(45px);
+    }
+
+    #stars-canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+    }
+
+    /* Progress bar */
+    .progress-bar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: rgba(255, 255, 255, 0.05);
+      z-index: 100;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: var(--accent);
+      transition: width 0.4s ease;
+    }
+
+    /* Top bar */
+    .top-bar {
+      position: relative;
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 20px 20px 0;
+      flex-shrink: 0;
+    }
+
+    .section-label {
+      color: var(--text-muted);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.2em;
+    }
+
+    .step-counter {
+      color: var(--text-muted);
+      font-size: 11px;
+      font-family: monospace;
+    }
+
+    /* Content area */
+    .content {
+      position: relative;
+      z-index: 5;
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 32px 20px;
+    }
+
+    .step {
+      width: 100%;
+      max-width: 520px;
+      opacity: 0;
+      transform: translateY(24px);
+      transition: opacity 0.35s ease, transform 0.35s ease;
+    }
+
+    .step.active {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .step.exit {
+      opacity: 0;
+      transform: translateY(-24px);
+    }
+
+    /* Interstitial */
+    .interstitial {
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .interstitial .icon-box {
+      width: 56px;
+      height: 56px;
+      border: 1px solid rgba(155, 109, 255, 0.3);
+      background: rgba(155, 109, 255, 0.06);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 32px;
+    }
+
+    .interstitial .icon-box svg {
+      width: 24px;
+      height: 24px;
+      stroke: var(--accent);
+    }
+
+    h1, h2 {
+      font-weight: 300;
+      letter-spacing: -0.02em;
+      line-height: 1.3;
+    }
+
+    h1 { font-size: clamp(26px, 5vw, 36px); margin-bottom: 16px; }
+    h2 { font-size: clamp(22px, 4vw, 30px); margin-bottom: 8px; }
+
+    .subtitle {
+      color: var(--text-secondary);
+      font-size: 14px;
+      line-height: 1.7;
+      margin-bottom: 40px;
+      white-space: pre-line;
+      max-width: 440px;
+    }
+
+    /* Buttons */
+    .btn-primary {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 32px;
+      background: var(--accent);
+      color: var(--bg-start);
+      font-weight: 600;
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      border: none;
+      cursor: pointer;
+      transition: filter 0.2s;
+    }
+
+    .btn-primary:hover { filter: brightness(1.1); }
+
+    .btn-continue {
+      width: 100%;
+      padding: 14px;
+      background: var(--accent);
+      color: var(--bg-start);
+      font-weight: 600;
+      font-size: 13px;
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      margin-top: 16px;
+      opacity: 0;
+      transform: translateY(8px);
+      transition: opacity 0.25s, transform 0.25s, filter 0.2s;
+    }
+
+    .btn-continue.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .btn-continue:hover { filter: brightness(1.1); }
+
+    /* Section label */
+    .step-section {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.25em;
+      color: rgba(155, 109, 255, 0.6);
+      margin-bottom: 12px;
+    }
+
+    /* Single select */
+    .options {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-top: 24px;
+    }
+
+    .option-btn {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 16px;
+      border: 1px solid var(--border);
+      background: var(--card-bg);
+      color: var(--text-secondary);
+      font-size: 14px;
+      font-weight: 500;
+      text-align: left;
+      cursor: pointer;
+      transition: all 0.2s;
+      opacity: 0;
+      transform: translateY(12px);
+      animation: fadeInUp 0.25s ease forwards;
+    }
+
+    .option-btn:nth-child(1) { animation-delay: 0s; }
+    .option-btn:nth-child(2) { animation-delay: 0.04s; }
+    .option-btn:nth-child(3) { animation-delay: 0.08s; }
+    .option-btn:nth-child(4) { animation-delay: 0.12s; }
+    .option-btn:nth-child(5) { animation-delay: 0.16s; }
+    .option-btn:nth-child(6) { animation-delay: 0.2s; }
+
+    @keyframes fadeInUp {
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .option-btn:hover {
+      border-color: rgba(155, 109, 255, 0.25);
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    .option-btn.selected {
+      border-color: var(--border-active);
+      background: var(--accent-dim);
+      color: var(--text);
+    }
+
+    .option-btn .dot {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      border: 1px solid var(--text-muted);
+      flex-shrink: 0;
+      transition: all 0.2s;
+    }
+
+    .option-btn.selected .dot {
+      border-color: var(--accent);
+      background: var(--accent);
+      box-shadow: inset 0 0 0 3px var(--bg-start);
+    }
+
+    /* Text input */
+    .text-input textarea,
+    .text-input input[type="text"] {
+      width: 100%;
+      padding: 14px 16px;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-size: 14px;
+      font-family: 'Inter', sans-serif;
+      transition: border-color 0.2s, background 0.2s;
+      outline: none;
+      resize: none;
+    }
+
+    .text-input textarea:focus,
+    .text-input input[type="text"]:focus {
+      border-color: rgba(155, 109, 255, 0.4);
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    .text-input textarea::placeholder,
+    .text-input input[type="text"]::placeholder {
+      color: var(--text-muted);
+    }
+
+    .text-input textarea { min-height: 140px; }
+
+    .char-count {
+      text-align: right;
+      font-size: 11px;
+      color: var(--text-muted);
+      font-family: monospace;
+      margin-top: 4px;
+    }
+
+    /* Loading */
+    .loading-step {
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .spinner {
+      width: 28px;
+      height: 28px;
+      margin-bottom: 32px;
+      animation: spin 2s linear infinite;
+    }
+
+    .spinner svg { stroke: var(--accent); }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Results */
+    .results-step {
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .results-step .complete-label {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.3em;
+      color: var(--accent);
+      margin-bottom: 16px;
+    }
+
+    .btn-done {
+      padding: 12px 32px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--text-secondary);
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: border-color 0.2s, color 0.2s;
+    }
+
+    .btn-done:hover {
+      border-color: rgba(255, 255, 255, 0.2);
+      color: var(--text);
+    }
+
+    /* Bottom nav */
+    .bottom-nav {
+      position: relative;
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      padding-bottom: 20px;
+      flex-shrink: 0;
+    }
+
+    .nav-btn {
+      width: 40px;
+      height: 40px;
+      border: 1px solid var(--border);
+      background: transparent;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: border-color 0.2s, color 0.2s;
+      color: var(--text-muted);
+    }
+
+    .nav-btn:hover:not(:disabled) {
+      border-color: rgba(255, 255, 255, 0.2);
+      color: var(--text-secondary);
+    }
+
+    .nav-btn:disabled {
+      opacity: 0.2;
+      cursor: not-allowed;
+    }
+
+    .nav-btn svg { width: 16px; height: 16px; }
+
+    /* Hidden */
+    .hidden { display: none !important; }
+
+    /* Mobile */
+    @media (min-width: 768px) {
+      .top-bar { padding: 24px 32px 0; }
+      .content { padding: 32px 48px; }
+    }
+  </style>
+</head>
+<body>
+  <div id="bg-layer">
+    <div class="glow-blob"></div>
+    <div class="glow-blob-inner"></div>
+    <div class="glow-blob-purple"></div>
+    <div class="glow-blob-purple-2"></div>
+    <canvas id="stars-canvas"></canvas>
+  </div>
+
+  <!-- Progress -->
+  <div class="progress-bar">
+    <div class="progress-fill" id="progress" style="width: 0%"></div>
+  </div>
+
+  <!-- Top bar -->
+  <div class="top-bar" id="topBar">
+    <span class="section-label" id="sectionLabel">Claude Code Jam</span>
+    <span class="step-counter" id="stepCounter">01 / 07</span>
+  </div>
+
+  <!-- Content -->
+  <div class="content">
+    <div id="stepContainer"></div>
+  </div>
+
+  <!-- Bottom nav -->
+  <div class="bottom-nav" id="bottomNav">
+    <button class="nav-btn" id="btnBack" disabled aria-label="Previous">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+    </button>
+    <button class="nav-btn" id="btnNext" aria-label="Next">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+    </button>
+  </div>
+
+  <script>
+    // ─── CONFIG ──────────────────────────────────────────────────────────────
+    const SUBMIT_URL = 'https://script.google.com/macros/s/AKfycbztZPGOrR-ZHdJNDtBNSVZ4Awp8jarBxW-kxq3k8PSzlg-eXXF_bbijQqy7VzlKG7rz/exec'
+
+    // ─── STEPS ──────────────────────────────────────────────────────────────
+    const STEPS = [
+      {
+        id: 'welcome',
+        type: 'interstitial',
+        section: 'Claude Code Jam',
+        title: 'Got a blocker? Let\u2019s fix it.',
+        subtitle: 'Submit what\u2019s slowing you down before the session.\nWe\u2019ll triage and work through it together on Wednesday.',
+      },
+      {
+        id: 'name',
+        type: 'text-input',
+        section: 'About You',
+        title: 'What\u2019s your name?',
+        subtitle: 'So we know who to call on during the session.',
+        placeholder: 'Your name',
+        multiline: false,
+        mapsTo: 'name',
+      },
+      {
+        id: 'project',
+        type: 'text-input',
+        section: 'Your Work',
+        title: 'What project or task is this about?',
+        subtitle: 'Give us a quick one-liner so we have context.',
+        placeholder: 'e.g. Automating client onboarding emails, setting up a Notion workflow...',
+        multiline: false,
+        mapsTo: 'project',
+      },
+      {
+        id: 'blocker-type',
+        type: 'single-select',
+        section: 'Your Blocker',
+        title: 'What type of blocker are you hitting?',
+        subtitle: 'Helps us triage and group similar issues.',
+        mapsTo: 'blockerType',
+        options: [
+          { id: 'technical', label: 'Technical \u2014 something isn\u2019t working' },
+          { id: 'design', label: 'Design \u2014 not sure how to approach it' },
+          { id: 'access', label: 'Access \u2014 missing permissions, tools, or credentials' },
+          { id: 'logic', label: 'Logic \u2014 confused about how something should work' },
+          { id: 'other', label: 'Other' },
+        ],
+      },
+      {
+        id: 'blocker-desc',
+        type: 'text-input',
+        section: 'Your Blocker',
+        title: 'What\u2019s blocking you?',
+        subtitle: 'Describe the issue. Be as specific as you can \u2014 error messages, what step you\u2019re stuck on, what\u2019s confusing.',
+        placeholder: 'e.g. "When I run the script it times out after 30 seconds. I\u2019m trying to read a large Google Sheet..."',
+        multiline: true,
+        mapsTo: 'blockerDescription',
+      },
+      {
+        id: 'tried',
+        type: 'text-input',
+        section: 'Your Blocker',
+        title: 'What have you tried so far?',
+        subtitle: 'Optional \u2014 but helps us skip things you\u2019ve already ruled out.',
+        placeholder: 'e.g. "Tried splitting the sheet into smaller reads, googled the error, asked Claude..."',
+        multiline: true,
+        mapsTo: 'whatTried',
+        optional: true,
+      },
+      {
+        id: 'loading',
+        type: 'loading',
+        title: 'Submitting...',
+      },
+      {
+        id: 'results',
+        type: 'results',
+        title: 'You\u2019re in.',
+        subtitle: 'We\u2019ll review your blocker before the session and come prepared. See you Wednesday.',
+      },
+    ]
+
+    // ─── STATE ──────────────────────────────────────────────────────────────
+    let current = 0
+    let answers = {}
+    let history = []
+
+    const container = document.getElementById('stepContainer')
+    const progress = document.getElementById('progress')
+    const topBar = document.getElementById('topBar')
+    const bottomNav = document.getElementById('bottomNav')
+    const sectionLabel = document.getElementById('sectionLabel')
+    const stepCounter = document.getElementById('stepCounter')
+    const btnBack = document.getElementById('btnBack')
+    const btnNext = document.getElementById('btnNext')
+
+    // ─── RENDER ─────────────────────────────────────────────────────────────
+    function render() {
+      const step = STEPS[current]
+      const questionSteps = STEPS.filter(s => s.type !== 'interstitial' && s.type !== 'loading' && s.type !== 'results')
+      const qIndex = questionSteps.findIndex(s => s.id === step.id)
+      const pct = step.type === 'results' ? 100 : step.type === 'interstitial' ? 0 : Math.round(((qIndex + 1) / questionSteps.length) * 100)
+
+      progress.style.width = pct + '%'
+
+      // Top bar
+      const showNav = step.type !== 'loading' && step.type !== 'results'
+      topBar.classList.toggle('hidden', !showNav)
+      bottomNav.classList.toggle('hidden', !showNav)
+
+      if (showNav) {
+        sectionLabel.textContent = step.section || ''
+        stepCounter.textContent = String(current + 1).padStart(2, '0') + ' / ' + String(STEPS.length).padStart(2, '0')
+        btnBack.disabled = history.length === 0
+        btnNext.disabled = step.type === 'single-select'
+      }
+
+      // Animate out
+      const oldStep = container.querySelector('.step')
+      if (oldStep) {
+        oldStep.classList.remove('active')
+        oldStep.classList.add('exit')
+        setTimeout(() => renderStep(step), 200)
+      } else {
+        renderStep(step)
+      }
+    }
+
+    function renderStep(step) {
+      let html = ''
+
+      if (step.type === 'interstitial') {
+        html = `
+          <div class="step interstitial" id="currentStep">
+            <div class="icon-box">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+            </div>
+            <h1>${step.title}</h1>
+            <p class="subtitle">${step.subtitle || ''}</p>
+            <button class="btn-primary" onclick="advance()">Begin <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
+          </div>`
+      }
+
+      else if (step.type === 'single-select') {
+        const optionsHtml = step.options.map(opt => `
+          <button class="option-btn${answers[step.mapsTo] === opt.id ? ' selected' : ''}" data-id="${opt.id}" onclick="selectOption('${step.mapsTo}', '${opt.id}')">
+            <span class="dot"></span>
+            <span>${opt.label}</span>
+          </button>`).join('')
+
+        html = `
+          <div class="step" id="currentStep">
+            <p class="step-section">${step.section || ''}</p>
+            <h2>${step.title}</h2>
+            ${step.subtitle ? `<p class="subtitle" style="margin-bottom:0">${step.subtitle}</p>` : ''}
+            <div class="options">${optionsHtml}</div>
+          </div>`
+      }
+
+      else if (step.type === 'text-input') {
+        const val = answers[step.mapsTo] || ''
+        const inputHtml = step.multiline
+          ? `<textarea id="textInput" placeholder="${step.placeholder || ''}" maxlength="5000" oninput="onTextChange()">${val}</textarea>
+             <p class="char-count"><span id="charCount">${val.length}</span> / 5,000</p>`
+          : `<input type="text" id="textInput" placeholder="${step.placeholder || ''}" value="${val}" oninput="onTextChange()" onkeydown="onTextKeydown(event)">`
+
+        html = `
+          <div class="step text-input" id="currentStep">
+            <p class="step-section">${step.section || ''}</p>
+            <h2>${step.title}</h2>
+            ${step.subtitle ? `<p class="subtitle">${step.subtitle}</p>` : ''}
+            ${inputHtml}
+            <button class="btn-continue${val.trim() ? ' visible' : ''}" id="btnContinue" onclick="submitText()">Continue <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
+          </div>`
+      }
+
+      else if (step.type === 'loading') {
+        html = `
+          <div class="step loading-step" id="currentStep">
+            <div class="spinner"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg></div>
+            <h2 style="color: var(--text-secondary)">${step.title}</h2>
+          </div>`
+      }
+
+      else if (step.type === 'results') {
+        html = `
+          <div class="step results-step" id="currentStep">
+            <div class="icon-box" style="margin-bottom:32px;border:1px solid rgba(155,109,255,0.3);background:rgba(155,109,255,0.06);width:56px;height:56px;display:flex;align-items:center;justify-content:center;">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+            </div>
+            <p class="complete-label">Submitted</p>
+            <h1>${step.title}</h1>
+            <p class="subtitle">${step.subtitle || ''}</p>
+            <button class="btn-done" onclick="window.location.reload()">Submit Another</button>
+          </div>`
+      }
+
+      container.innerHTML = html
+
+      // Activate with delay for animation
+      requestAnimationFrame(() => {
+        const el = document.getElementById('currentStep')
+        if (el) el.classList.add('active')
+      })
+
+      // Auto-focus text input
+      if (step.type === 'text-input') {
+        setTimeout(() => {
+          const input = document.getElementById('textInput')
+          if (input) input.focus()
+        }, 350)
+      }
+
+      // Auto-advance loading
+      if (step.type === 'loading') {
+        submitForm()
+        setTimeout(() => advance(), 2500)
+      }
+    }
+
+    // ─── ACTIONS ────────────────────────────────────────────────────────────
+    function advance() {
+      history.push(current)
+      current++
+      render()
+    }
+
+    function goBack() {
+      if (history.length === 0) return
+      current = history.pop()
+      render()
+    }
+
+    function selectOption(key, value) {
+      answers[key] = value
+      // Visual feedback then advance
+      document.querySelectorAll('.option-btn').forEach(btn => {
+        btn.classList.toggle('selected', btn.dataset.id === value)
+      })
+      setTimeout(() => advance(), 350)
+    }
+
+    function onTextChange() {
+      const input = document.getElementById('textInput')
+      const btn = document.getElementById('btnContinue')
+      const charCount = document.getElementById('charCount')
+      if (charCount) charCount.textContent = input.value.length
+      if (btn) btn.classList.toggle('visible', input.value.trim().length > 0)
+
+      // Update next button state
+      const step = STEPS[current]
+      if (step.optional) {
+        btnNext.disabled = false
+      } else {
+        btnNext.disabled = !input.value.trim()
+      }
+    }
+
+    function onTextKeydown(e) {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault()
+        submitText()
+      }
+    }
+
+    function submitText() {
+      const input = document.getElementById('textInput')
+      const step = STEPS[current]
+      const val = input ? input.value.trim() : ''
+
+      // Allow empty for optional fields
+      if (!val && !step.optional) return
+
+      answers[step.mapsTo] = val
+      advance()
+    }
+
+    function submitForm() {
+      if (!SUBMIT_URL) {
+        console.warn('No SUBMIT_URL configured — skipping submission')
+        return
+      }
+
+      const data = {
+        ...answers,
+        submittedAt: new Date().toISOString(),
+        source: 'code-jam-intake',
+      }
+
+      // Use hidden form + iframe to bypass CORS (works from file:// and any origin)
+      const iframe = document.createElement('iframe')
+      iframe.name = 'submit-frame'
+      iframe.style.display = 'none'
+      document.body.appendChild(iframe)
+
+      const form = document.createElement('form')
+      form.method = 'POST'
+      form.action = SUBMIT_URL
+      form.target = 'submit-frame'
+
+      // Send as a single JSON field that Apps Script can parse
+      const input = document.createElement('input')
+      input.type = 'hidden'
+      input.name = 'payload'
+      input.value = JSON.stringify(data)
+      form.appendChild(input)
+
+      document.body.appendChild(form)
+      form.submit()
+
+      // Cleanup after a delay
+      setTimeout(() => {
+        form.remove()
+        iframe.remove()
+      }, 5000)
+    }
+
+    // Nav buttons
+    btnBack.addEventListener('click', goBack)
+    btnNext.addEventListener('click', () => {
+      const step = STEPS[current]
+      if (step.type === 'text-input') submitText()
+      else if (step.type === 'interstitial') advance()
+    })
+
+    // ─── INIT ───────────────────────────────────────────────────────────────
+    render()
+
+    // ─── STARS ──────────────────────────────────────────────────────────────
+    ;(function() {
+      const canvas = document.getElementById('stars-canvas')
+      const ctx = canvas.getContext('2d')
+      function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; draw() }
+      function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height)
+        const seed = (n) => { let x = Math.sin(n+1)*10000; return x - Math.floor(x) }
+        for (let i = 0; i < 120; i++) {
+          const rx = seed(i*3)
+          const ry = seed(i*3+1)
+          const r  = 0.4 + seed(i*3+2) * 1.4
+          const a  = 0.25 + seed(i*7) * 0.75
+          ctx.beginPath()
+          ctx.arc(rx * canvas.width, ry * canvas.height, r, 0, Math.PI * 2)
+          ctx.fillStyle = `rgba(255,255,255,${a})`
+          ctx.fill()
+        }
+      }
+      window.addEventListener('resize', resize)
+      resize()
+    })()
+  </script>
+</body>
+</html>
